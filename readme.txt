@@ -1,2 +1,5 @@
-#vaegan
+#auto encoder & gan
+python train.py --gpu=True --data_save_root=output --experiment_name=4_22 --total_steps=50000 --latent_dim=128 --batch_size=32 --b1=0 --b2=0.9 --data_path='/home/ma-user/work/AttGAN-PyTorch/data/CelebA/img/img_align_celeba' --attr_path='/home/ma-user/work/AttGAN-PyTorch/data/CelebA/anno/list_attr_celeba.txt' --data_save_root='output'
+
+#encoder gan
 python train.py --gpu=True --data_save_root=output --experiment_name=4_22 --total_steps=50000 --latent_dim=128 --batch_size=32 --b1=0 --b2=0.9 --data_path='/home/ma-user/work/AttGAN-PyTorch/data/CelebA/img/img_align_celeba' --attr_path='/home/ma-user/work/AttGAN-PyTorch/data/CelebA/anno/list_attr_celeba.txt' --data_save_root='output'

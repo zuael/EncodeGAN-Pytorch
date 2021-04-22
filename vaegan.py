@@ -14,12 +14,11 @@ encoder = {
 class VAEGAN(nn.Module):
     def __init__(self, args):
         super(VAEGAN, self).__init__()
-        self.mode = args.mode
         self.gpu = args.gpu
         self.E_mode = args.E_mode
         self.lambda_gp = args.lambda_gp
         self.latent_dim = args.latent_dim
-        self.kld_weight = args.batch_size / args.imgs_num
+        self.lambda_kld = args.batch_size / args.imgs_num
 
         device = torch.device('cuda' if args.gpu else 'cpu')
         # Initialize generator and discriminator
@@ -46,64 +45,27 @@ class VAEGAN(nn.Module):
         self.sched_D = torch.optim.lr_scheduler.LambdaLR(self.optimizer_D, lr_lambda=Lambda)
         self.sched_E = torch.optim.lr_scheduler.LambdaLR(self.optimizer_E, lr_lambda=Lambda)
 
-    def train_G_E(self, real_imgs):
+    def train_G(self, real_imgs):
         noise = torch.randn((real_imgs.shape[0], self.latent_dim), device=real_imgs.device)
 
-        if self.E_mode == 'auto':
-            latent, mu, log_var = self.E(real_imgs)
-            recons_imgs = self.G(z=latent)
-            recon_adv, recons_f = self.D(recons_imgs)
-            _, real_f = self.D(real_imgs)
+        gen_imgs = self.G(noise)
+        gen_adv, _ = self.D(gen_imgs)
 
-            gen_imgs = self.G(noise)
-            gen_adv, _ = self.D(gen_imgs)
+        loss = - gen_adv.mean()
 
-            G_loss = - 0.5 * gen_adv.mean() - 0.5 * recon_adv.mean()
-
-            recons_loss = F.mse_loss(recons_f, real_f.detach())
-            kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim=1), dim=0)
-            E_loss = recons_loss + self.kld_weight * kld_loss
-
-            loss = G_loss + E_loss
-
-        elif self.E_mode == 'enc':
-            gen_imgs = self.G(noise)
-            latent = self.E(gen_imgs.detach())
-            gen_adv, _ = self.D(gen_imgs)
-
-            G_loss = 0.5 * gen_adv.mean()
-
-            recons_loss = F.mse_loss(latent, noise)
-            kld_loss = torch.mean(-0.5 * torch.sum(latent, dim=1), dim=0)
-            E_loss = recons_loss + self.kld_weight * kld_loss
-
-            loss = G_loss + E_loss
-        else:
-            pass
+        errG = {'g_loss': loss.item(),}
 
         self.optimizer_G.zero_grad()
-        self.optimizer_E.zero_grad()
         loss.backward()
         self.optimizer_G.step()
-        self.optimizer_E.step()
 
-        errG_E = {
-            'loss': loss.item(),
-            'g_loss': G_loss.item(),
-            'e_loss': E_loss.item(),
-            'reconstruction_Loss': recons_loss.item(),
-            'kld': kld_loss.item()
-        }
-
-        return errG_E
+        return errG
     
     def train_D(self, real_imgs):
         noise = torch.randn((real_imgs.shape[0], self.latent_dim), device=real_imgs.device)
-        recon_imgs = self.G(self.E(real_imgs)[0]).detach()
         gen_imgs = self.G(z=noise).detach()
 
         real_adv, _ = self.D(image=real_imgs)
-        recon_adv, _ = self.D(image=recon_imgs)
         gen_adv, _ = self.D(image=gen_imgs)
 
         def gradient_penalty(f, real, fake=None):
@@ -130,10 +92,9 @@ class VAEGAN(nn.Module):
             gp = ((norm - 1.0) ** 2).mean()
             return gp
 
-        wd = real_adv.mean() - 0.5 * (gen_adv.mean() + recon_adv.mean())
+        wd = real_adv.mean() - gen_adv.mean()
         df_loss = -wd
-        df_gp = 0.5 * (gradient_penalty(self.D, real_imgs, gen_imgs)
-                       + gradient_penalty(self.D, real_imgs, recon_imgs))
+        df_gp = gradient_penalty(self.D, real_imgs, gen_imgs)
 
         d_loss = df_loss + self.lambda_gp * df_gp
 
@@ -148,6 +109,29 @@ class VAEGAN(nn.Module):
         }
 
         return errD
+
+    def train_E(self, real_imgs):
+        noise = torch.randn((real_imgs.shape[0], self.latent_dim), device=real_imgs.device)
+
+        gen_imgs = self.G(noise)
+        latent = self.E(gen_imgs.detach())
+        recons_imgs = self.G(z=self.E(real_imgs))
+
+        recons_loss_1 = F.l1_loss(latent, noise)
+        recons_loss_2 = F.l1_loss(recons_imgs, real_imgs)
+        E_loss = recons_loss_1 + recons_loss_2
+
+        errE = {
+            'e_loss': E_loss.item(),
+            'recons_loss_1': recons_loss_1.item(),
+            'recons_loss_2': recons_loss_2.item()
+        }
+
+        self.optimizer_E.zero_grad()
+        E_loss.backward()
+        self.optimizer_E.step()
+
+        return errE
 
     def step(self):
         self.sched_G.step()

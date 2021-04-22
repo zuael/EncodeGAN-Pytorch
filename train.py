@@ -44,6 +44,7 @@ def parse(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--total_steps", type=int, default=50000, help="number of epochs of training")
     parser.add_argument("--n_d", type=int, default=3, help="# of d updates per g update")
+    parser.add_argument("--n_d", type=int, default=2, help="# of d updates per g update")
     parser.add_argument("--imgs_num", type=int, default=200000, help="length of dataset")
     parser.add_argument("--batch_size", type=int, default=1, help="size of the batches")
     parser.add_argument("--test_size", dest="test_size", type=int, default=50, help="size of the test_batches")
@@ -51,7 +52,7 @@ def parse(args=None):
     parser.add_argument("--n_samples", type=int, default=10)
     parser.add_argument("--lr", type=float, default=2e-4, help="adam: learning rate")
     parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
-    parser.add_argument("--b2", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
+    parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
     parser.add_argument("--num_workers", dest='num_workers', type=int, default=cpu_count(),
                         help="number of cpu threads to use during batch generation")
     parser.add_argument("--gpu", type=bool, default=True, help="whether to use gpu")
@@ -59,7 +60,7 @@ def parse(args=None):
     parser.add_argument("--latent_dim", type=int, default=128, help="dimensionality of the latent space")
     parser.add_argument("--img_size", type=int, default=64, help="size of each image dimension")
     parser.add_argument("--channels", type=int, default=3, help="number of image channels")
-    parser.add_argument("--sample_interval", type=int, default=1000, help="interval between image sampling")
+    parser.add_argument("--sample_interval", type=int, default=500, help="interval between image sampling")
     parser.add_argument("--save_interval", type=int, default=2000, help="interval between weight save")
     parser.add_argument("--E_mode", type=str, default='enc')
     parser.add_argument("--lambda_gp", dest='lambda_gp', type=float, default=10.0)
@@ -127,7 +128,7 @@ fixed_noise = torch.randn((args.n_samples ** 2, args.latent_dim)).to(device)
 
 writer = SummaryWriter(join(args.data_save_root, args.experiment_name, 'summary'))
 
-with trange(step, args.total_steps + 1, dynamic_ncols=True) as pbar:
+with trange(step, args.total_steps, dynamic_ncols=True) as pbar:
     for it in pbar:
         writer.add_scalar('LR/learning_rate', vaegan.optimizer_E.param_groups[0]['lr'], it + 1)
         vaegan.train()
@@ -142,11 +143,21 @@ with trange(step, args.total_steps + 1, dynamic_ncols=True) as pbar:
         add_scalar_dict(writer, errD, it + 1, 'D')
 
         # -----------------
-        #  Train Generator and Autoencoder
+        #  Train Generator
         # -----------------
-        errG_E = vaegan.train_G_E(real_imgs=imgs)
-        add_scalar_dict(writer, errG_E, it + 1, 'G_E')
-        pbar.set_postfix(iter=it + 1, d_loss=errD['d_loss'], g_loss=errG_E['g_loss'], e_loss=errG_E['e_loss'])
+        errG = vaegan.train_G(real_imgs=imgs)
+        add_scalar_dict(writer, errG, it + 1, 'G')
+
+        # -----------------
+        #  Train encoder
+        # -----------------
+        for _ in range(args.n_e):
+            imgs = next(looper)
+            imgs = imgs.to(device)
+            errE = vaegan.train_E(real_imgs=imgs)
+        add_scalar_dict(writer, errE, it + 1, 'E')
+
+        pbar.set_postfix(iter=it + 1, d_loss=errD['d_loss'], g_loss=errG['g_loss'], e_loss=errE['e_loss'])
 
         if (it + 1) % args.save_interval == 0:
             vaegan.save(os.path.join(
@@ -160,8 +171,10 @@ with trange(step, args.total_steps + 1, dynamic_ncols=True) as pbar:
                 samples = torch.zeros(fixed_image.shape[0] * 2,
                                       args.channels, args.img_size, args.img_size)
                 samples = samples.cuda() if args.gpu else samples
-
-                _, latent, _ = vaegan.E(fixed_image)
+                if args.E_mode == 'auto':
+                    _, latent, _ = vaegan.E(fixed_image)
+                else:
+                    latent = vaegan.E(fixed_image)
                 recon_image = vaegan.G(z=latent)
 
                 samples[range(0, fixed_image.shape[0] * 2, 2)] = fixed_image
