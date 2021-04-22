@@ -1,0 +1,13 @@
+matplotlib
+scikit-image
+tensorboardX
+torchsummary
+dataclasses
+numpy
+Pillow
+scipy==1.5.1
+torch
+torchvision
+tqdm
+typing-extensions
+tensorboard
