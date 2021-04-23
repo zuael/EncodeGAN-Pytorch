@@ -44,7 +44,7 @@ def parse(args=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--total_steps", type=int, default=50000, help="number of epochs of training")
     parser.add_argument("--n_d", type=int, default=3, help="# of d updates per g update")
-    parser.add_argument("--n_d", type=int, default=2, help="# of d updates per g update")
+    parser.add_argument("--n_e", type=int, default=2, help="# of e updates per g update")
     parser.add_argument("--imgs_num", type=int, default=200000, help="length of dataset")
     parser.add_argument("--batch_size", type=int, default=1, help="size of the batches")
     parser.add_argument("--test_size", dest="test_size", type=int, default=50, help="size of the test_batches")
@@ -132,6 +132,7 @@ with trange(step, args.total_steps, dynamic_ncols=True) as pbar:
     for it in pbar:
         writer.add_scalar('LR/learning_rate', vaegan.optimizer_E.param_groups[0]['lr'], it + 1)
         vaegan.train()
+
         # ---------------------
         #  Train Discriminator
         # ---------------------

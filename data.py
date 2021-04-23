@@ -36,7 +36,7 @@ class Custom(data.Dataset):
         return len(self.images)
 
 class CelebA(data.Dataset):
-    def __init__(self, data_path, attr_path, image_size, mode, selected_attrs):
+    def __init__(self, data_path, attr_path, image_size, mode, selected_attrs, da=False):
         super(CelebA, self).__init__()
         self.data_path = data_path
         att_list = open(attr_path, 'r', encoding='utf-8').readlines()[1].split()
@@ -56,13 +56,22 @@ class CelebA(data.Dataset):
         if mode == 'mytest':
             self.images = images[-16:]
             self.labels = labels[-16:]
-        
-        self.tf = transforms.Compose([
-            transforms.CenterCrop(170),
-            transforms.Resize(image_size),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
-        ])
+
+        if da:
+            self.tf = transforms.Compose([
+                transforms.CenterCrop(170),
+                transforms.Resize(image_size),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ])
+        else:
+            self.tf = transforms.Compose([
+                transforms.CenterCrop(170),
+                transforms.Resize(image_size),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+            ])
                                        
         self.length = len(self.images)
     def __getitem__(self, index):
