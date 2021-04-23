@@ -35,6 +35,7 @@ def parse(args=None):
     parser.add_argument('--data_path', dest='data_path', type=str, default='')
     parser.add_argument('--test_data_path', dest='test_data_path', type=str, default='')
     parser.add_argument('--attr_path', dest='attr_path', type=str, default='')
+    parser.add_argument('--attrs_change_path', dest='attrs_change_path', type=str, default=None)
     parser.add_argument("--experiment_name", dest='experiment_name',
                         default=datetime.datetime.now().strftime("%I-%M%p on %B %d_%Y"))
     return parser.parse_args()
@@ -44,8 +45,7 @@ print(args_)
 
 
 with open(join(args_.setting_path), 'r') as f:
-    f.write(json.dumps(vars(args_), indent=4, separators=(',', ':')))
-    args = json.load(f)
+    args = json.load(f, object_hook=lambda d: argparse.Namespace(**d))
 
 args.test_size = args_.test_size
 args.n_samples = args_.n_samples
@@ -54,7 +54,9 @@ args.gpu = args_.gpu
 args.weight_path = args_.weight_path
 args.data_save_root = args_.data_save_root
 args.data_path = args_.data_path
+args.test_data_path = args_.test_data_path
 args.attr_path = args_.attr_path
+args.attrs_change_path = args_.attrs_change_path
 args.experiment_name = args_.experiment_name
 
 
@@ -79,33 +81,39 @@ pbar = tqdm(total=args.imgs_num, dynamic_ncols=True, leave=False,
 attrs_num = len(args.attrs)
 attr_true = torch.zeros((attrs_num, args.latent_dim), dtype=float).to(device)
 attr_False = torch.zeros((attrs_num, args.latent_dim), dtype=float).to(device)
-attr_true_n = torch.zeros(attrs_num)
-attr_False_n = torch.zeros(attrs_num)
+attr_true_n = torch.zeros(attrs_num, 1).to(device)
+attr_False_n = torch.zeros(attrs_num, 1).to(device)
 
-for _ in range(args.imgs_num // args.test_size):
-    image, label = next(iter(test_dataloader))
+if args.attrs_change_path is not None:
+    attr_change = np.load(join(args.attrs_change_path))
+    attr_change = torch.FloatTensor(attr_change).to(device)
+else:
+    for _ in range(args.imgs_num // args.test_size):
+        image, label = next(iter(test_dataloader))
 
-    image = image.to(device)
-    label = label.to(device)
+        image = image.to(device)
+        label = label.to(device)
 
-    latent = vaegan.E(image).detach()
+        latent = vaegan.E(image).detach()
 
-    for i in range(label.shape[1]):
-        mask = label[:,i].view(label.shape[0],-1)
+        for i in range(label.shape[1]):
+            mask = label[:,i].view(label.shape[0],-1)
 
-        # update average latent
-        attr_true[i] += (mask * latent).sum(dim=0)
-        attr_true_n[i] += mask.sum()
+            # update average latent
+            attr_true[i] += (mask * latent).sum(dim=0)
+            attr_true_n[i] += mask.sum()
 
-        attr_False[i] += ((1 - mask) * latent).sum(dim=0)
-        attr_False_n[i] += (1 - mask).sum()
+            attr_False[i] += ((1 - mask) * latent).sum(dim=0)
+            attr_False_n[i] += (1 - mask).sum()
 
-    pbar.update(args.test_size)
+        pbar.update(args.test_size)
 
-# get attr diff explore direction
-attr_true = attr_true / attr_true_n
-attr_False = attr_False / attr_False_n
-attr_change = (attr_true - attr_False).detach()
+    # get attr diff explore direction
+    attr_true = attr_true / attr_true_n
+    attr_False = attr_False / attr_False_n
+    attr_change = (attr_true - attr_False).detach()
+
+    np.save('change_direction.npy', np.array(attr_change.cpu()))
 
 # get test image label
 image_test_name = os.listdir(args.test_data_path)
@@ -115,7 +123,7 @@ images = np.loadtxt(args.attr_path, skiprows=2, usecols=[0], dtype=np.str)
 labels = np.loadtxt(args.attr_path, skiprows=2, usecols=atts, dtype=np.int)
 count = 0
 
-label_test = np.zeros(len(image_test_name), attrs_num)
+label_test = np.zeros((len(image_test_name), attrs_num))
 
 for i in range(len(images)):
     if images[i] in image_test_name:
@@ -135,9 +143,10 @@ tf = transforms.Compose([
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
 ])
 
-image_test = tf(np.array([Image.open(os.path.join(args.test_data_path, image_test_name[i]))
-                    for i in range(len(image_test_name))]))
-label_test = torch.tensor(label_test).to(device)
+image_test = torch.cat([tf(Image.open(join('test_data', image_test_name[i]))).unsqueeze(0)
+                        for i in range(len(image_test_name))],dim=0).to(device)
+
+label_test = torch.FloatTensor(label_test).to(device)
 
 orignal_latent = vaegan.E(image_test.to(device))
 
@@ -147,4 +156,4 @@ for i in range(orignal_latent.shape[0]):
     change_image = vaegan.G(torch.cat([orignal_latent[i].unsqueeze(0), change_latent], dim=0))
     samples = torch.cat([image_test[i].unsqueeze(0), change_image], dim=0)
     save_image(samples, join(args.data_save_root, args.experiment_name, image_test_name[i]),
-               nrow=1, normalize=True, range=(-1., 1.))
+               nrow=attrs_num, normalize=True, range=(-1., 1.))

@@ -85,8 +85,8 @@ class Autoencorder_res(nn.Module):
         eps = torch.randn_like(std)
         return eps * std + mu
 
-    def forward(self, input):
-        result = self.model(input)
+    def forward(self, image):
+        result = self.model(image)
         result = torch.flatten(result, start_dim=1)
 
         mu = self.fc_mu(result)
@@ -117,8 +117,8 @@ class Encorder(nn.Module):
 
         res_arch_init(self)
 
-    def forward(self, input):
-        result = self.model(input)
+    def forward(self, image):
+        result = self.model(image)
         result = torch.flatten(result, start_dim=1)
 
         z = self.fc(result)

@@ -111,25 +111,42 @@ class VAEGAN(nn.Module):
         return errD
 
     def train_E(self, real_imgs):
-        noise = torch.randn((real_imgs.shape[0], self.latent_dim), device=real_imgs.device)
+        if self.E_mode == 'enc':
+            noise = torch.randn((real_imgs.shape[0], self.latent_dim), device=real_imgs.device)
+            gen_imgs = self.G(noise)
+            latent = self.E(gen_imgs.detach())
+            recons_imgs = self.G(z=self.E(real_imgs))
 
-        gen_imgs = self.G(noise)
-        latent = self.E(gen_imgs.detach())
-        recons_imgs = self.G(z=self.E(real_imgs))
+            recons_loss_1 = F.l1_loss(latent, noise)
+            recons_loss_2 = F.l1_loss(recons_imgs, real_imgs)
+            E_loss = recons_loss_1 + recons_loss_2
 
-        recons_loss_1 = F.l1_loss(latent, noise)
-        recons_loss_2 = F.l1_loss(recons_imgs, real_imgs)
-        E_loss = recons_loss_1 + recons_loss_2
+            errE = {
+                'e_loss': E_loss.item(),
+                'recons_loss_1': recons_loss_1.item(),
+                'recons_loss_2': recons_loss_2.item()
+            }
 
-        errE = {
-            'e_loss': E_loss.item(),
-            'recons_loss_1': recons_loss_1.item(),
-            'recons_loss_2': recons_loss_2.item()
-        }
+            self.optimizer_E.zero_grad()
+            E_loss.backward()
+            self.optimizer_E.step()
 
-        self.optimizer_E.zero_grad()
-        E_loss.backward()
-        self.optimizer_E.step()
+        else:
+            latent, mu, log_var = self.E(real_imgs)
+            recons_imgs = self.G(z=latent)
+            recons_loss = F.l1_loss(recons_imgs, real_imgs)
+            kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim=1), dim=0)
+            E_loss = recons_loss + self.lambda_kld * kld_loss
+
+            errE = {
+                'e_loss': E_loss.item(),
+                'recons_loss': recons_loss.item(),
+                'kld_loss': kld_loss.item()
+            }
+
+            self.optimizer_E.zero_grad()
+            E_loss.backward()
+            self.optimizer_E.step()
 
         return errE
 
