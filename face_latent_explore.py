@@ -56,6 +56,7 @@ args.data_save_root = args_.data_save_root
 args.data_path = args_.data_path
 args.test_data_path = args_.test_data_path
 args.attr_path = args_.attr_path
+args.attrs = args_.attrs
 args.attrs_change_path = args_.attrs_change_path
 args.experiment_name = args_.experiment_name
 
@@ -92,9 +93,12 @@ else:
         image, label = next(iter(test_dataloader))
 
         image = image.to(device)
-        label = label.to(device)
+        label = torch.FloatTensor(label).to(device)
 
-        latent = vaegan.E(image).detach()
+        latent = vaegan.E(image)
+
+        if isinstance(latent, tuple):
+            latent = latent[1].detach()
 
         for i in range(label.shape[1]):
             mask = label[:,i].view(label.shape[0],-1)
@@ -119,8 +123,8 @@ else:
 image_test_name = os.listdir(args.test_data_path)
 att_list = open(args.attr_path, 'r', encoding='utf-8').readlines()[1].split()
 atts = [att_list.index(att) + 1 for att in args.attrs]
-images = np.loadtxt(args.attr_path, skiprows=2, usecols=[0], dtype=np.str)
-labels = np.loadtxt(args.attr_path, skiprows=2, usecols=atts, dtype=np.int)
+images = np.loadtxt(args.attr_path, skiprows=2, usecols=[0], dtype=str)
+labels = np.loadtxt(args.attr_path, skiprows=2, usecols=atts, dtype=int)
 count = 0
 
 label_test = np.zeros((len(image_test_name), attrs_num))
@@ -149,6 +153,8 @@ image_test = torch.cat([tf(Image.open(join('test_data', image_test_name[i]))).un
 label_test = torch.FloatTensor(label_test).to(device)
 
 orignal_latent = vaegan.E(image_test.to(device))
+if isinstance(orignal_latent, tuple):
+    orignal_latent = orignal_latent[1]
 
 for i in range(orignal_latent.shape[0]):
     flag = -label_test[i].view(label_test.shape[1], -1)
@@ -156,4 +162,4 @@ for i in range(orignal_latent.shape[0]):
     change_image = vaegan.G(torch.cat([orignal_latent[i].unsqueeze(0), change_latent], dim=0))
     samples = torch.cat([image_test[i].unsqueeze(0), change_image], dim=0)
     save_image(samples, join(args.data_save_root, args.experiment_name, image_test_name[i]),
-               nrow=attrs_num, normalize=True, range=(-1., 1.))
+               nrow=attrs_num+2, normalize=True, range=(-1., 1.))

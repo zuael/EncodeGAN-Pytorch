@@ -64,6 +64,7 @@ def parse(args=None):
     parser.add_argument("--save_interval", type=int, default=2000, help="interval between weight save")
     parser.add_argument("--E_mode", type=str, default='enc')
     parser.add_argument("--lambda_gp", dest='lambda_gp', type=float, default=10.0)
+    parser.add_argument("--lambda_y", dest='lambda_y', type=float, default=0.5)
 
     parser.add_argument('--is_resume', dest='is_resume', type=bool, default=False)
     parser.add_argument('--seed', dest='seed', type=int, default=0)
