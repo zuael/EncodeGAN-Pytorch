@@ -3,17 +3,17 @@ import torch.nn.functional as F
 import torch
 from torchsummary import summary
 import torch.nn as nn
-from autoencoder import Autoencorder_res, Encorder
+from encoder import Autoencorder, Encorder
 from wgan_gp import ResGenerator, ResDiscriminator
 
 encoder = {
-    'auto': Autoencorder_res,
+    'auto': Autoencorder,
     'enc': Encorder
 }
 
-class VAEGAN(nn.Module):
+class EncodeGAN(nn.Module):
     def __init__(self, args):
-        super(VAEGAN, self).__init__()
+        super(EncodeGAN, self).__init__()
         self.gpu = args.gpu
         self.E_mode = args.E_mode
         self.lambda_gp = args.lambda_gp
@@ -67,7 +67,7 @@ class VAEGAN(nn.Module):
             _, real_f = self.D(real_imgs)
 
             adv_loss = - gen_adv.mean()
-            recon_loss = F.l1_loss(recon_f, real_f.detach())
+            recon_loss = F.l1_loss(recon_f, real_f.detach()) + F.l1_loss(recon_imgs, real_imgs)
 
             loss = adv_loss + self.lambda_y * recon_loss
 
@@ -129,7 +129,7 @@ class VAEGAN(nn.Module):
 
             wd = 2 * real_adv.mean() - gen_adv.mean() - recon_adv.mean()
             df_loss = -wd
-            df_gp = gradient_penalty(self.D, real_imgs, gen_imgs) + gradient_penalty(self.D, real_imgs, recon_imgs)
+            df_gp = 2 * gradient_penalty(self.D, real_imgs, gen_imgs)
 
             d_loss = df_loss + self.lambda_gp * df_gp
 
@@ -152,14 +152,20 @@ class VAEGAN(nn.Module):
             latent = self.E(gen_imgs.detach())
             recons_imgs = self.G(z=self.E(real_imgs))
 
+            _, real_f = self.D(real_imgs)
+            _, recon_f = self.D(recons_imgs)
+
             recons_loss_1 = F.l1_loss(latent, noise)
             recons_loss_2 = F.l1_loss(recons_imgs, real_imgs)
-            E_loss = recons_loss_1 + recons_loss_2
+            recons_loss_3 = F.l1_loss(recon_f, real_f.detach())
+
+            E_loss = 2 * recons_loss_1 + recons_loss_2 + recons_loss_3
 
             errE = {
                 'e_loss': E_loss.item(),
                 'recons_loss_1': recons_loss_1.item(),
-                'recons_loss_2': recons_loss_2.item()
+                'recons_loss_2': recons_loss_2.item(),
+                'recons_loss_3': recons_loss_2.item()
             }
 
             self.optimizer_E.zero_grad()
@@ -187,35 +193,6 @@ class VAEGAN(nn.Module):
 
         return errE
 
-    def train_G_E(self, real_imgs):
-        noise = torch.randn((real_imgs.shape[0], self.latent_dim), device=real_imgs.device)
-        gen_imgs = self.G(noise)
-        gen_adv, _ = self.D(gen_imgs)
-
-        latent, mu, log_var = self.E(real_imgs)
-        recon_imgs = self.G(latent)
-        recon_adv, recon_f = self.D(recon_imgs)
-        _, real_f = self.D(real_imgs)
-
-        adv_loss = - gen_adv.mean() - recon_adv.mean()
-        recon_loss = F.l1_loss(recon_f, real_f.detach())
-        kld_loss = torch.mean(-0.5 * torch.sum(1 + log_var - mu ** 2 - log_var.exp(), dim=1), dim=0)
-
-        loss = adv_loss + self.lambda_y * recon_loss + self.lambda_kld * kld_loss
-
-        errG = {'loss': adv_loss.item()}
-
-        errE = {'loss': recon_loss.item() + kld_loss.item(),
-                'recon_loss': recon_loss.item(),
-                'kld_loss': kld_loss.item()}
-
-        self.optimizer_G.zero_grad()
-        self.optimizer_E.zero_grad()
-        loss.backward()
-        self.optimizer_G.step()
-        self.optimizer_E.step()
-
-        return errG, errE
 
     def step(self):
         self.sched_G.step()

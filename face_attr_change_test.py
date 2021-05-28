@@ -15,12 +15,10 @@ from tqdm import tqdm
 import torch
 from PIL import Image
 import numpy as np
-
 attrs_default = [
     'Bald', 'Bangs', 'Black_Hair', 'Blond_Hair', 'Brown_Hair', 'Bushy_Eyebrows',
     'Eyeglasses', 'Male', 'Mustache', 'No_Beard', 'Pale_Skin', 'Young'
 ]
-
 
 def parse(args=None):
     parser = argparse.ArgumentParser()
@@ -42,9 +40,9 @@ def parse(args=None):
                         default=datetime.datetime.now().strftime("%I-%M%p on %B %d_%Y"))
     return parser.parse_args()
 
-
 args_ = parse()
 print(args_)
+
 
 with open(join(args_.setting_path), 'r') as f:
     args = json.load(f, object_hook=lambda d: argparse.Namespace(**d))
@@ -61,6 +59,7 @@ args.attr_path = args_.attr_path
 args.attrs = args_.attrs
 args.attrs_change_path = args_.attrs_change_path
 args.experiment_name = args_.experiment_name
+
 
 os.makedirs(join(args.data_save_root, args.experiment_name), exist_ok=True)
 test_dataset = CelebA(args.data_path, args.attr_path, args.img_size, 'valid', args.attrs)
@@ -97,12 +96,12 @@ else:
         label = torch.FloatTensor(label).to(device)
         with torch.no_grad():
             latent = vaegan.E(image)
-
+        
         if isinstance(latent, tuple):
             latent = latent[1]
 
         for i in range(label.shape[1]):
-            mask = label[:, i].view(label.shape[0], -1)
+            mask = label[:,i].view(label.shape[0],-1)
 
             # update average latent
             attr_true[i] += (mask * latent).sum(dim=0)
@@ -149,7 +148,7 @@ tf = transforms.Compose([
 ])
 
 image_test = torch.cat([tf(Image.open(join('test_data', image_test_name[i]))).unsqueeze(0)
-                        for i in range(len(image_test_name))], dim=0).to(device)
+                        for i in range(len(image_test_name))],dim=0).to(device)
 
 label_test = torch.FloatTensor(label_test).to(device)
 
@@ -164,4 +163,4 @@ for i in range(orignal_latent.shape[0]):
         change_image = vaegan.G(torch.cat([orignal_latent[i].unsqueeze(0), change_latent], dim=0))
     samples = torch.cat([image_test[i].unsqueeze(0), change_image], dim=0)
     save_image(samples, join(args.data_save_root, args.experiment_name, image_test_name[i]),
-               nrow=attrs_num + 2, normalize=True, range=(-1., 1.))
+               nrow=attrs_num+2, normalize=True, range=(-1., 1.))

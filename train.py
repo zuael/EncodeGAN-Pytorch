@@ -113,10 +113,7 @@ vaegan = VAEGAN(args)
 
 if args.is_resume:
     vaegan.load(os.path.join('output', args.experiment_name, 'checkpoint', 'weights.' + str(args.load_iter) + '.pth'))
-    ea = event_accumulator.EventAccumulator(join('output', args.experiment_name, 'summary', args.event_name))
-    ea.Reload()
-    loss = ea.scalars.Items('E/loss')
-    step = loss[-1][1]
+    step = args.load_iter
 else:
     step = 0
 

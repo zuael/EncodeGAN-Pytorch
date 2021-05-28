@@ -51,10 +51,10 @@ class ResencBlock(nn.Module):
     def forward(self, x):
         return self.residual(x) + self.shortcut(x)
 
-class Autoencorder_res(nn.Module):
+class Autoencorder(nn.Module):
 
     def __init__(self, inchannels, latent_dim, image_size):
-        super(Autoencorder_res, self).__init__()
+        super(Autoencorder, self).__init__()
 
         self.latent_dim = latent_dim
 
