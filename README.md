@@ -42,6 +42,7 @@ python train.py --gpu=True --data_save_root=output --experiment_name=Encode_GAN 
 #### To test EncodeGan in interpolation capabilities on image
 
 ```bash
+CUDA_VISIBLE_DEVICES=0 \
 python face_latent_space_explore_test.py --gpu=True --data_save_root=output --experiment_name=face_latent_space_explore_test --weight_path=output/Encode_GAN/checkpoint/weights.99999.pth --setting_path=output/Encode_GAN/setting.txt --test_data_path=test_data
 ```
 
