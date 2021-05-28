@@ -2,8 +2,8 @@
 
 A PyTorch implementation of EncodeGAN
 
-Inverting 13 attributes respectively. From left to right: _Input, Reconstruction, Bald, Bangs, Black_Hair, Blond_Hair, Brown_Hair, Bushy_Eyebrows, Eyeglasses, Male, Mouth_Slightly_Open, Mustache, No_Beard, Pale_Skin, Young_
-
+    his project is used to achieve face image fusion and attribute change tasks
+    
 ## Requirements
 
 * Python 3.6
@@ -18,7 +18,7 @@ pip install -r requirements.txt
   * [CelebA](http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) dataset
     * [Images](https://www.dropbox.com/sh/8oqt9vytwxb3s4r/AADSNUu0bseoCKuxuI5ZeTl1a/Img?dl=0&preview=img_align_celeba.zip) should be placed in `data/CelebA/img/img_align_celeba/*.jpg`
     * [Attribute labels](https://www.dropbox.com/sh/8oqt9vytwxb3s4r/AAA8YmAHNNU6BEfWMPMfM6r9a/Anno?dl=0&preview=list_attr_celeba.txt) should be placed in `data/CelebA/anno/list_attr_celeba.txt`
-  * [test_data]:you can use CelebA's test dataset, or select some face image from CelebA and add them in `test_data/*.jpg`.
+  * test_data:you can use CelebA's test dataset, or select some face image from CelebA and add them in `test_data/*.jpg`.
 ```text
 data
 ├── CelebA
