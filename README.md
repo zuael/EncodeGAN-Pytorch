@@ -2,8 +2,8 @@
 
 A PyTorch implementation of EncodeGAN
 
-    his project is used to achieve face image fusion and attribute change tasks
-    
+    this project is used to achieve face image fusion and attribute change tasks
+
 ## Requirements
 
 * Python 3.6
